@@ -1,0 +1,26 @@
+[project]
+name = "stibe"
+version = "0.1.0"
+description = "REST API service for CI/CD laboratory work"
+readme = "README.md"
+keywords = ["rest-api", "fastapi", "ci-cd"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
+    "Topic :: Software Development",
+]
+authors = [
+    { name = "Sofiia", email = "tibenkovasofiast@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.165.0",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+stibe = "stibe:main"
+
+[build-system]
+requires = ["uv_build>=0.13.10,<0.14.0"]
+build-backend = "uv_build"
