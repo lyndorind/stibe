@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "CODE_OF_CONDUCT.md"
+      - "GOVERNANCE.md"
+      - "SECURITY.md"
+      - "SUPPORT.md"
+      - "LICENSE*"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - ".github/pull_request_template.md"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: "0.13.10"
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Read version from code
+        id: version
+        run: |
+          VERSION=$(uv run --locked python -c "from stibe import __version__; print(__version__)")
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Project version: $VERSION"
+
+      - name: Extract release notes
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          uv run --locked python - <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          lines = Path("CHANGELOG.md").read_text(
+              encoding="utf-8-sig"
+          ).splitlines()
+
+          notes = []
+          found = False
+
+          for line in lines:
+              if line.startswith("## "):
+                  if found:
+                      break
+                  if line.startswith(f"## [{version}]"):
+                      found = True
+                      continue
+
+              if found:
+                  notes.append(line)
+
+          content = "\n".join(notes).strip()
+
+          if not found or not content:
+              raise SystemExit("Release notes not found")
+
+          Path("release-notes.md").write_text(
+              content + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Build package
+        run: uv build --python 3.14
+
+      - name: Generate SHA-256
+        working-directory: dist
+        run: sha256sum *.whl *.tar.gz > SHA256SUMS.txt
+
+      - name: Verify SHA-256
+        working-directory: dist
+        run: sha256sum -c SHA256SUMS.txt
+
+      - name: Create tag and release
+        uses: ./.github/actions/create-release
+        with:
+          version: ${{ steps.version.outputs.value }}
+          notes-file: release-notes.md
+          assets-dir: dist
+          token: ${{ secrets.GITHUB_TOKEN }}
