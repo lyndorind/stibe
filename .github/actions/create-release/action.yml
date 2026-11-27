@@ -1,0 +1,62 @@
+name: Create tag and release
+description: Create an annotated Git tag and publish a GitHub Release
+
+inputs:
+  version:
+    description: Project version without v prefix
+    required: true
+
+  notes-file:
+    description: Path to release notes
+    required: true
+
+  assets-dir:
+    description: Directory containing built packages
+    required: true
+
+  token:
+    description: GitHub token with contents write permission
+    required: true
+
+outputs:
+  tag:
+    description: Created Git tag
+    value: ${{ steps.release.outputs.tag }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Create Git tag and GitHub Release
+      id: release
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        NOTES_FILE: ${{ inputs.notes-file }}
+        ASSETS_DIR: ${{ inputs.assets-dir }}
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+
+        TAG="v${VERSION}"
+
+        if git show-ref --verify --quiet "refs/tags/${TAG}"; then
+          echo "::error::Tag ${TAG} already exists"
+          exit 1
+        fi
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git tag -a "$TAG" -m "Release $TAG"
+        git push origin "refs/tags/$TAG"
+
+        gh release create "$TAG" \
+          "$ASSETS_DIR"/*.whl \
+          "$ASSETS_DIR"/*.tar.gz \
+          "$ASSETS_DIR"/SHA256SUMS.txt \
+          --title "$TAG" \
+          --notes-file "$NOTES_FILE" \
+          --verify-tag
+
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
