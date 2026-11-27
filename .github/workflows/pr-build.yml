@@ -1,0 +1,47 @@
+name: PR Build
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: "0.13.10"
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Build package
+        run: uv build --python 3.14
+
+      - name: Generate SHA-256
+        working-directory: dist
+        run: sha256sum *.whl *.tar.gz > SHA256SUMS.txt
+
+      - name: Verify SHA-256
+        working-directory: dist
+        run: sha256sum -c SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: stibe-package-${{ github.event.pull_request.number }}
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
